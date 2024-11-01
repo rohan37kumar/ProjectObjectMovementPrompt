@@ -1,9 +1,7 @@
 {
     "name": "com.ezygamers.objectmovementprompt.scripts",
     "rootNamespace": "com.ezygamers.objectmovementprompt.scripts",
-    "references": [
-        "leantweenhelperscripts"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

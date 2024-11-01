@@ -13,15 +13,14 @@ namespace ezygamers.ObjectMovementPrompt
         
         [SerializeField] private float idleTimeThreshold = 5f;      // Time before showing prompt
         [SerializeField] private float animationDuration = 1.5f;    // Duration of single animation
-        [SerializeField] private float verticalDistance = 1000f;     // Distance to move down
-        [SerializeField] private float curveOffset = 50f;          // How much the curve bends to the right
+        [SerializeField] private float verticalDistance = 1000f;    // Distance to move down
+        [SerializeField] private float curveOffset = 50f;           // How much the curve bends to the right
 
         private RectTransform handRectTransform;
         private Vector2 startPosition;
         private Vector2 endPosition;
         private bool isAnimating;
-        private int? currentTweenId;
-        private LTDescr movementTween;
+        private int? currentDelayCallId;
         
         private void Awake()
         {
@@ -40,7 +39,7 @@ namespace ezygamers.ObjectMovementPrompt
 
         private void OnDestroy()
         {
-            CancelCurrentAnimation();
+            StopAnimation();
         }
 
         private bool ValidateComponents()
@@ -73,18 +72,18 @@ namespace ezygamers.ObjectMovementPrompt
 
         private void ScheduleAnimation()
         {
-            if (currentTweenId.HasValue)
+            if (currentDelayCallId.HasValue)
             {
-                LeanTween.cancel(currentTweenId.Value);
+                AnimationHelper.CancelDelayedCall(currentDelayCallId.Value);
             }
 
-            currentTweenId = LeanTween.delayedCall(idleTimeThreshold, () =>
+            currentDelayCallId = AnimationHelper.DelayedCall(idleTimeThreshold, () =>
             {
                 if (enableAutoPrompt && !isAnimating)
                 {
                     StartAnimation();
                 }
-            }).id;
+            });
         }
 
         public void CallObjectMovement()
@@ -121,8 +120,6 @@ namespace ezygamers.ObjectMovementPrompt
 
         private void StartAnimation()
         {
-            //if (isAnimating) return;
-            
             isAnimating = true;
             handPromptImage.enabled = true;
             
@@ -130,65 +127,49 @@ namespace ezygamers.ObjectMovementPrompt
             handRectTransform.anchoredPosition = startPosition;
             handPromptImage.color = new Color(1f, 1f, 1f, 1f);
 
-            // Create the movement sequence
-            movementTween = LeanTween.value(gameObject, 0f, 1f, animationDuration)
-                .setOnUpdate((float t) =>
+            // Start the curved movement animation
+            AnimationHelper.AnimateCurvedUIMovement(
+                handRectTransform,
+                startPosition,
+                endPosition,
+                curveOffset,
+                animationDuration,
+                () =>
                 {
-                    // Calculate curved path using quadratic Bezier curve
-                    Vector2 controlPoint = new Vector2(
-                        startPosition.x + curveOffset,
-                        startPosition.y - verticalDistance * 0.5f
-                    );
-                    
-                    Vector2 newPosition = Vector2.Lerp(
-                        Vector2.Lerp(startPosition, controlPoint, t),
-                        Vector2.Lerp(controlPoint, endPosition, t),
-                        t
-                    );
-                    
-                    handRectTransform.anchoredPosition = newPosition;
-                })
-                .setOnComplete(() =>
-                {
-                    // Fade out when reaching end position
-                    LeanTween.alpha(handRectTransform, 0f, 0.3f)
-                        .setOnComplete(() =>
+                    // On complete, fade out
+                    AnimationHelper.FadeUIElement(
+                        handRectTransform,
+                        1f,
+                        0f,
+                        0.3f,
+                        () =>
                         {
                             if (enableAutoPrompt)
                             {
-                                // Reset position and alpha
+                                // Reset and restart
                                 handRectTransform.anchoredPosition = startPosition;
                                 handPromptImage.color = new Color(1f, 1f, 1f, 1f);
-                                
-                                // Restart the movement sequence
                                 StartAnimation();
                             }
-                        });
-                })
-                .setEase(LeanTweenType.easeInOutSine);
+                        }
+                    );
+                }
+            );
         }
 
         private void StopAnimation()
         {
             if (!isAnimating) return;
             
-            CancelCurrentAnimation();
+            AnimationHelper.CancelAllAnimationsForObject(gameObject);
+            if (currentDelayCallId.HasValue)
+            {
+                AnimationHelper.CancelDelayedCall(currentDelayCallId.Value);
+                currentDelayCallId = null;
+            }
+            
             handPromptImage.enabled = false;
             isAnimating = false;
-        }
-
-        private void CancelCurrentAnimation()
-        {
-            LeanTween.cancel(gameObject);
-            if (currentTweenId.HasValue)
-            {
-                LeanTween.cancel(currentTweenId.Value);
-                currentTweenId = null;
-            }
-            if (movementTween != null)
-            {
-                LeanTween.cancel(movementTween.id);
-            }
         }
     }
 }
